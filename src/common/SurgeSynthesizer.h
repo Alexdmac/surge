@@ -27,6 +27,7 @@
 #include "Effect.h"
 #include "BiquadFilter.h"
 #include <set>
+#include <cstring>
 #include <sst/filters/HalfRateFilter.h>
 
 struct QuadFilterChainState;
