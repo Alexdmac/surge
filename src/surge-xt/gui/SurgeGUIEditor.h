@@ -566,7 +566,7 @@ class SurgeGUIEditor : public Surge::GUI::IComponentTagValue::Listener,
         {
             std::lock_guard<std::mutex> mg(synth->patchLoadSpawnMutex);
             undoManager()->pushPatch();
-            strncpy(synth->patchid_file, file.c_str(), FILENAME_MAX);
+            synth->setPatchIdFile(file.c_str());
             synth->patchid_file_isPreset = isPreset;
             synth->has_patchid_file = true;
         }

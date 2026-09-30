@@ -1748,7 +1748,7 @@ bool SurgeSynthProcessor::presetLoadFromLocation(uint32_t location_kind, const c
 
     {
         std::lock_guard<std::mutex> mg(surge->patchLoadSpawnMutex);
-        strncpy(surge->patchid_file, location, sizeof(surge->patchid_file));
+        surge->setPatchIdFile(location);
         surge->has_patchid_file = true;
     }
     surge->processAudioThreadOpsWhenAudioEngineUnavailable();

@@ -561,6 +561,13 @@ class alignas(16) SurgeSynthesizer
     std::atomic<bool> has_patchid_file;
     char patchid_file[FILENAME_MAX];
 
+    // Copy a path into patchid_file. Truncates and always null-terminates.
+    void setPatchIdFile(const char *path)
+    {
+        strncpy(patchid_file, path, sizeof(patchid_file) - 1);
+        patchid_file[sizeof(patchid_file) - 1] = 0;
+    }
+
     /*
      * Whether the queued patchid_file should be loaded as a preset. That is what makes
      * loadPatchByPath keep the caller supplied name and drop the name, category, master
