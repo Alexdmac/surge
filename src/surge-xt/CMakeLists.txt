@@ -124,8 +124,6 @@ target_sources(${PROJECT_NAME} PRIVATE
   gui/overlays/AboutScreen.h
   gui/overlays/FilterAnalysis.cpp
   gui/overlays/FilterAnalysis.h
-  gui/overlays/KeyBindingsOverlay.h
-  gui/overlays/KeyBindingsOverlay.cpp
   gui/overlays/LuaEditors.cpp
   gui/overlays/LuaEditors.h
   gui/overlays/MSEGEditor.cpp
@@ -144,12 +142,8 @@ target_sources(${PROJECT_NAME} PRIVATE
   gui/overlays/Oscilloscope.h
   gui/overlays/OverlayWrapper.cpp
   gui/overlays/OverlayWrapper.h
-  gui/overlays/PatchDBViewer.cpp
-  gui/overlays/PatchDBViewer.h
   gui/overlays/PatchStoreDialog.cpp
   gui/overlays/PatchStoreDialog.h
-  gui/overlays/TuningOverlays.cpp
-  gui/overlays/TuningOverlays.h
   gui/overlays/TypeinParamEditor.cpp
   gui/overlays/TypeinParamEditor.h
   gui/overlays/WaveShaperAnalysis.cpp

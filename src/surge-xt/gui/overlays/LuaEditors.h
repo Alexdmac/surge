@@ -318,7 +318,6 @@ class CodeEditorContainerWithApply : public OverlayComponent,
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(CodeEditorContainerWithApply);
 };
 
-struct ExpandingFormulaDebugger;
 struct FormulaControlArea;
 
 struct FormulaModulatorEditor : public CodeEditorContainerWithApply, public RefreshableOverlay
@@ -336,21 +335,16 @@ struct FormulaModulatorEditor : public CodeEditorContainerWithApply, public Refr
     void showModulatorCode();
     void showPreludeCode();
 
-    void updateDebuggerIfNeeded();
-
     std::vector<juce::Component *> getGroupNavigationComponents() override;
 
     std::unique_ptr<juce::CodeDocument> preludeDocument;
     std::unique_ptr<SurgeCodeEditorComponent> preludeDisplay;
     std::unique_ptr<FormulaControlArea> controlArea;
 
-    std::unique_ptr<ExpandingFormulaDebugger> debugPanel;
-
     LFOStorage *lfos{nullptr};
     FormulaModulatorStorage *formulastorage{nullptr};
     SurgeGUIEditor *editor{nullptr};
     int lfo_id, scene;
-    int32_t updateDebuggerCounter{0};
 
     DAWExtraStateStorage::EditorState::FormulaEditState &getEditState();
 

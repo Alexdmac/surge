@@ -48,24 +48,6 @@ struct MainFrame : public juce::Component
     }
 
     void paint(juce::Graphics &g) override;
-    bool debugFocus{false};
-    juce::Rectangle<int> focusRectangle;
-    void paintOverChildren(juce::Graphics &g) override
-    {
-        if (!debugFocus)
-        {
-            return;
-        }
-
-        if (focusRectangle.getWidth() > 0 && focusRectangle.getHeight() > 0)
-        {
-            g.setColour(juce::Colours::red);
-            g.drawRect(focusRectangle, 1);
-            g.setColour(juce::Colours::white.withAlpha(0.15f));
-            g.fillRect(focusRectangle);
-        }
-    }
-
     void resized() override
     {
         for (auto &c : cgOverlays)

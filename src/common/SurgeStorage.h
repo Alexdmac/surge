@@ -1092,7 +1092,6 @@ struct DAWExtraStateStorage
         /*
          * Window state parameters for Formula Editor overlay
          * codeOrPrelude: Code editor selected tab
-         * debuggerOpen: Debug panel toggle
          */
 
         struct CodeEditorState
@@ -1116,11 +1115,6 @@ struct DAWExtraStateStorage
         {
             int codeOrPrelude{0};
 
-            bool debuggerOpen{false};
-            bool debuggerUserVariablesOpen{true};
-            bool debuggerBuiltInVariablesOpen{true};
-            bool debuggerGroupState[8]{true, true, true, true, true, true, true, true};
-            std::string debuggerFilterText{""};
             CodeEditorState codeEditor;
 
         } formulaEditState[n_scenes][n_lfos];
@@ -1154,18 +1148,6 @@ struct DAWExtraStateStorage
 
         void clearFormulaStateInScene(int sc, int id)
         {
-            formulaEditState[sc][id].debuggerFilterText = originalState.debuggerFilterText;
-            formulaEditState[sc][id].debuggerBuiltInVariablesOpen =
-                originalState.debuggerBuiltInVariablesOpen;
-            formulaEditState[sc][id].debuggerUserVariablesOpen =
-                originalState.debuggerUserVariablesOpen;
-
-            for (int i = 0; i < 8; i++)
-            {
-                formulaEditState[sc][id].debuggerGroupState[i] = true;
-            }
-            formulaEditState[sc][id].debuggerOpen = originalState.debuggerOpen;
-
             clearCodeEditorState(formulaEditState[sc][id].codeEditor);
         }
 
@@ -1253,11 +1235,6 @@ struct DAWExtraStateStorage
             float max_db = 1.f;
             float decay_rate = 1.f;
         } oscilloscopeOverlayState;
-
-        struct TuningOverlayState
-        {
-            int editMode = 0;
-        } tuningOverlayState;
     } editor;
 
     bool mpeEnabled = false;

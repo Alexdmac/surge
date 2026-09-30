@@ -151,7 +151,6 @@ struct PatchSelector : public juce::Component,
                                 bool addToSubmenu = true);
     void exportFavorites();
     void importFavorites();
-    void openPatchBrowser();
 
     void paint(juce::Graphics &g) override;
 

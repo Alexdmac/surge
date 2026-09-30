@@ -3573,49 +3573,16 @@ void SurgePatch::load_xml(const void *data, int datasize, bool is_preset)
                             auto q = &(dawExtraState.editor.formulaEditState[sc][lf]);
 
                             int i;
-                            bool b;
-                            std::string s;
 
                             q->codeOrPrelude = 0;
-                            q->debuggerOpen = false;
-
-                            // debugger
 
                             if (fss->QueryIntAttribute("codeOrPrelude", &i) == TIXML_SUCCESS)
                             {
                                 q->codeOrPrelude = i;
                             }
 
-                            if (fss->QueryIntAttribute("debuggerOpen", &i) == TIXML_SUCCESS)
-                            {
-                                q->debuggerOpen = i;
-                            }
-
-                            if (fss->QueryBoolAttribute("debuggerBuiltInVariablesOpen", &b) ==
-                                TIXML_SUCCESS)
-                            {
-                                q->debuggerBuiltInVariablesOpen = b;
-                            }
-
-                            if (fss->QueryBoolAttribute("debuggerUserVariablesOpen", &b) ==
-                                TIXML_SUCCESS)
-                            {
-                                q->debuggerUserVariablesOpen = b;
-                            }
-
-                            if (fss->QueryStringAttribute("debuggerFilterText", &s) ==
-                                TIXML_SUCCESS)
-                            {
-                                q->debuggerFilterText = s;
-                            }
-
-                            if (fss->QueryIntAttribute("debuggerGroupState", &i) == TIXML_SUCCESS)
-                            {
-                                for (int c = 0; c < 8; c++)
-                                {
-                                    q->debuggerGroupState[c] = (i & (1 << c)) > 0;
-                                }
-                            }
+                            // Older sessions may carry debugger* attributes from the removed
+                            // formula debugger. They are ignored.
 
                             // code editor
 
@@ -3683,22 +3650,8 @@ void SurgePatch::load_xml(const void *data, int datasize, bool is_preset)
                     }
                 }
 
-                {
-                    auto tes = &(dawExtraState.editor.tuningOverlayState);
-                    auto node = TINYXML_SAFE_TO_ELEMENT(p->FirstChild("tuning_overlay"));
-
-                    tes->editMode = 0;
-
-                    if (node)
-                    {
-                        int val;
-
-                        if (node->QueryIntAttribute("editMode", &val) == TIXML_SUCCESS)
-                        {
-                            tes->editMode = val;
-                        }
-                    }
-                }
+                // Older sessions may carry a tuning_overlay element from the removed tuning
+                // editor. It is ignored.
                 {
                     auto oos = &(dawExtraState.editor.oscilloscopeOverlayState);
                     auto node = TINYXML_SAFE_TO_ELEMENT(p->FirstChild("oscilloscope_overlay"));
@@ -4540,19 +4493,7 @@ unsigned int SurgePatch::save_xml(void **data) // allocates mem, must be freed b
                 std::string fsns = "formula_state_" + std::to_string(sc) + "_" + std::to_string(lf);
                 TiXmlElement fss(fsns);
 
-                // debugger
                 fss.SetAttribute("codeOrPrelude", q->codeOrPrelude);
-                fss.SetAttribute("debuggerOpen", q->debuggerOpen);
-                fss.SetAttribute("debuggerBuiltInVariablesOpen", q->debuggerBuiltInVariablesOpen);
-                fss.SetAttribute("debuggerUserVariablesOpen", q->debuggerUserVariablesOpen);
-
-                int groupStates = 0;
-                for (int i = 0; i < 8; i++)
-                {
-                    groupStates += ((q->debuggerGroupState[i] ? 1 : 0) << i);
-                }
-
-                fss.SetAttribute("debuggerGroupState", groupStates);
 
                 // code editor state
                 saveCodeEditorState(&fss, q->codeEditor);
@@ -4581,10 +4522,6 @@ unsigned int SurgePatch::save_xml(void **data) // allocates mem, must be freed b
             modEd.SetAttribute("filterString",
                                dawExtraState.editor.modulationEditorState.filterString);
             eds.InsertEndChild(modEd);
-
-            TiXmlElement tunOl("tuning_overlay");
-            tunOl.SetAttribute("editMode", dawExtraState.editor.tuningOverlayState.editMode);
-            eds.InsertEndChild(tunOl);
         }
 
         // Add the oscilloscope settings
