@@ -508,15 +508,6 @@ void PatchSelector::mouseDown(const juce::MouseEvent &e)
     showClassicMenu(e.mods.isPopupMenu(), e.mods.isCommandDown());
 }
 
-void PatchSelector::openPatchBrowser()
-{
-    auto sge = firstListenerOfType<SurgeGUIEditor>();
-
-    if (sge)
-    {
-        sge->showOverlay(SurgeGUIEditor::PATCH_BROWSER);
-    }
-}
 void PatchSelector::showClassicMenu(bool single_category, bool userOnly)
 {
     auto contextMenu = juce::PopupMenu();
@@ -807,13 +798,6 @@ void PatchSelector::showClassicMenu(bool single_category, bool userOnly)
         }
 
         contextMenu.addSeparator();
-
-#if INCLUDE_PATCH_BROWSER
-        Surge::GUI::addMenuItemWithShortcut(
-            contextMenu, Surge::GUI::toOSCase("Patch Database..."),
-            sge->getShortcutDescription(Surge::GUI::KeyboardActions::TOGGLE_PATCH_BROWSER),
-            [this, sge]() { sge->showOverlay(SurgeGUIEditor::PATCH_BROWSER); });
-#endif
     }
 
     contextMenu.addItem(Surge::GUI::toOSCase("Refresh Patch Browser"),

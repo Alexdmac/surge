@@ -57,7 +57,6 @@
 #include "overlays/MSEGEditor.h"
 #include "overlays/LuaEditors.h"
 #include "overlays/ModulationEditor.h"
-#include "overlays/KeyBindingsOverlay.h"
 #include "overlays/TypeinParamEditor.h"
 #include "overlays/Oscilloscope.h"
 #include "overlays/OverlayWrapper.h"
@@ -494,8 +493,6 @@ SurgeGUIEditor::SurgeGUIEditor(SurgeSynthEditor *jEd, SurgeSynthesizer *synth)
 
     synth->addModulationAPIListener(this);
 
-    juce::Desktop::getInstance().addFocusChangeListener(this);
-
     setupKeymapManager();
 
     if (!juceEditor->processor.undoManager)
@@ -514,7 +511,6 @@ SurgeGUIEditor::~SurgeGUIEditor()
     closePatchBackup();
 
     juce::PopupMenu::dismissAllActiveMenus();
-    juce::Desktop::getInstance().removeFocusChangeListener(this);
     synth->removeModulationAPIListener(this);
     synth->storage.clearOkCancelProvider();
     auto isPop = synth->storage.getPatch().dawExtraState.isPopulated;
@@ -682,41 +678,6 @@ void SurgeGUIEditor::idle()
                     int numEOL = std::count(msg.begin(), msg.end(), '\n');
                     messageBox(title, msg, (numEOL >= 5) ? 14 * (numEOL - 4) : 0);
                 }
-            }
-        }
-
-        if (componentToFocusAfterAlertDismissal)
-        {
-            if (!(alert && alert->isVisible()))
-            {
-                componentToFocusAfterAlertDismissal->setWantsKeyboardFocus(true);
-                Surge::GUI::grabKeyboardFocusIfAllowed(componentToFocusAfterAlertDismissal);
-            }
-        }
-
-        if (lastObservedMidiNoteEventCount != synth->midiNoteEvents)
-        {
-            lastObservedMidiNoteEventCount = synth->midiNoteEvents;
-
-            auto tun = getOverlayIfOpenAs<Surge::Overlays::TuningOverlay>(TUNING_EDITOR);
-
-            if (tun)
-            {
-                // If there are things subscribed to keys update them here
-                std::bitset<128> keyOn{0};
-
-                for (int sc = 0; sc < n_scenes; ++sc)
-                {
-                    for (int k = 0; k < 128; ++k)
-                    {
-                        if (synth->midiKeyPressedForScene[sc][k] > 0)
-                        {
-                            keyOn[k] = 1;
-                        }
-                    }
-                }
-
-                tun->setMidiOnKeys(keyOn);
             }
         }
 
@@ -892,13 +853,6 @@ void SurgeGUIEditor::idle()
             overlaysForNextIdle.clear();
         }
 
-        auto ol = getOverlayIfOpenAs<Surge::Overlays::FormulaModulatorEditor>(FORMULA_EDITOR);
-
-        if (ol)
-        {
-            ol->updateDebuggerIfNeeded();
-        }
-
         auto wt =
             &synth->storage.getPatch().scene[current_scene].osc[current_osc[current_scene]].wt;
         if (wt->refresh_display)
@@ -1053,7 +1007,6 @@ void SurgeGUIEditor::idle()
 
         if (patchChanged)
         {
-            refreshOverlayWithOpenClose(TUNING_EDITOR);
             refreshOverlayWithOpenClose(MODULATION_EDITOR);
         }
 
@@ -1459,8 +1412,6 @@ void SurgeGUIEditor::idle()
 
         scanJuceSkinComponents = false;
     }
-
-    idleTuningEditorForMTSESP();
 
     juceEditor->fireListenersOnEndEdit = false;
     for (int s = 0; s < n_scenes; ++s)
@@ -2493,10 +2444,6 @@ bool SurgeGUIEditor::open(void *parent)
     frame->setBounds(0, 0, currentSkin->getWindowSizeX(), currentSkin->getWindowSizeY());
     frame->setSurgeGUIEditor(this);
 
-    // Comment this in to always start with focus debugger
-    // debugFocus = true;
-    // y-frame->debugFocus = true;
-
     juceEditor->topLevelContainer->addAndMakeVisible(*frame);
     juceEditor->addKeyListener(this);
 
@@ -3485,72 +3432,6 @@ void SurgeGUIEditor::tuningChanged()
             sw->setTooltip(info);
         }
     }
-
-    auto tc = dynamic_cast<Surge::Overlays::TuningOverlay *>(getOverlayIfOpen(TUNING_EDITOR));
-
-    if (tc)
-    {
-        tc->setTuning(tuningForTuningEditor());
-        tc->repaint();
-    }
-}
-
-bool SurgeGUIEditor::isMTSESPClient() const
-{
-    return synth->storage.oddsound_mts_client && synth->storage.oddsound_mts_active_as_client;
-}
-
-Tunings::Tuning SurgeGUIEditor::tuningForTuningEditor()
-{
-#ifndef SURGE_SKIP_ODDSOUND_MTS
-    if (isMTSESPClient())
-    {
-        lastMTSESPTuningInfo =
-            Surge::Storage::mtsESPInfoFromClient(synth->storage.oddsound_mts_client);
-
-        return Surge::Storage::tuningFromMTSESPInfo(lastMTSESPTuningInfo);
-    }
-#endif
-
-    return synth->storage.currentTuning;
-}
-
-void SurgeGUIEditor::idleTuningEditorForMTSESP()
-{
-    // MTS-ESP has no change notification, so look for a new tuning every few frames
-    if (slowIdleCounter % 10 != 0)
-    {
-        return;
-    }
-
-    auto tun = getOverlayIfOpenAs<Surge::Overlays::TuningOverlay>(TUNING_EDITOR);
-
-    if (!tun)
-    {
-        return;
-    }
-
-    auto hasMTS = isMTSESPClient();
-
-    if (tun->mtsMode != hasMTS)
-    {
-        tun->setMTSMode(hasMTS);
-        tun->setTuning(tuningForTuningEditor());
-        return;
-    }
-
-#ifndef SURGE_SKIP_ODDSOUND_MTS
-    if (hasMTS)
-    {
-        auto info = Surge::Storage::mtsESPInfoFromClient(synth->storage.oddsound_mts_client);
-
-        if (info != lastMTSESPTuningInfo)
-        {
-            lastMTSESPTuningInfo = info;
-            tun->setTuning(Surge::Storage::tuningFromMTSESPInfo(info));
-        }
-    }
-#endif
 }
 
 bool SurgeGUIEditor::doesZoomFitToScreen(float zf, float &correctedZf)
@@ -6225,12 +6106,6 @@ void SurgeGUIEditor::setupKeymapManager()
     keyMapManager->addBinding(KeyboardActions::TOGGLE_MODULATOR_ARM,
                               {keymap_t::Modifiers::ALT, (int)'A'});
 
-#if WINDOWS
-    keyMapManager->addBinding(KeyboardActions::TOGGLE_DEBUG_CONSOLE,
-                              {keymap_t::Modifiers::ALT, (int)'D'});
-#endif
-    keyMapManager->addBinding(KeyboardActions::TOGGLE_KEYBIND_EDITOR,
-                              {keymap_t::Modifiers::ALT, (int)'B'});
     keyMapManager->addBinding(KeyboardActions::TOGGLE_LFO_EDITOR,
                               {keymap_t::Modifiers::ALT, (int)'E'});
 #if HAS_LUA
@@ -6239,8 +6114,6 @@ void SurgeGUIEditor::setupKeymapManager()
 #endif
     keyMapManager->addBinding(KeyboardActions::TOGGLE_MODLIST,
                               {keymap_t::Modifiers::ALT, (int)'M'});
-    keyMapManager->addBinding(KeyboardActions::TOGGLE_TUNING_EDITOR,
-                              {keymap_t::Modifiers::ALT, (int)'T'});
     keyMapManager->addBinding(KeyboardActions::TOGGLE_OSCILLOSCOPE,
                               {keymap_t::Modifiers::ALT, (int)'O'});
     keyMapManager->addBinding(KeyboardActions::TOGGLE_VIRTUAL_KEYBOARD,
@@ -6270,8 +6143,6 @@ void SurgeGUIEditor::setupKeymapManager()
                               {keymap_t::Modifiers::ALT, (int)','});
 
     keyMapManager->addBinding(KeyboardActions::REFRESH_SKIN, {juce::KeyPress::F5Key});
-    keyMapManager->addBinding(KeyboardActions::SKIN_LAYOUT_GRID,
-                              {keymap_t::Modifiers::ALT, (int)'L'});
 
     keyMapManager->addBinding(KeyboardActions::OPEN_MANUAL, {juce::KeyPress::F1Key});
     keyMapManager->addBinding(KeyboardActions::TOGGLE_ABOUT, {juce::KeyPress::F12Key});
@@ -6452,15 +6323,6 @@ bool SurgeGUIEditor::keyPressed(const juce::KeyPress &key, juce::Component *orig
                 return true;
             }
 
-#if WINDOWS
-            case KeyboardActions::TOGGLE_DEBUG_CONSOLE:
-                Surge::Debug::toggleConsole();
-                return true;
-#endif
-            case KeyboardActions::TOGGLE_KEYBIND_EDITOR:
-                toggleOverlay(SurgeGUIEditor::KEYBINDINGS_EDITOR);
-                frame->repaint();
-                return true;
             case KeyboardActions::TOGGLE_LFO_EDITOR:
                 if (lfoDisplay->isMSEG())
                 {
@@ -6488,10 +6350,6 @@ bool SurgeGUIEditor::keyPressed(const juce::KeyPress &key, juce::Component *orig
 #endif
             case KeyboardActions::TOGGLE_MODLIST:
                 toggleOverlay(SurgeGUIEditor::MODULATION_EDITOR);
-                frame->repaint();
-                return true;
-            case KeyboardActions::TOGGLE_TUNING_EDITOR:
-                toggleOverlay(SurgeGUIEditor::TUNING_EDITOR);
                 frame->repaint();
                 return true;
             case KeyboardActions::TOGGLE_VIRTUAL_KEYBOARD:
@@ -6768,38 +6626,15 @@ bool SurgeGUIEditor::keyPressed(const juce::KeyPress &key, juce::Component *orig
             case KeyboardActions::ANNOUNCE_STATE:
                 announceGuiState();
                 break;
-            case KeyboardActions::SKIN_LAYOUT_GRID:
             case KeyboardActions::TOGGLE_ABOUT:
             {
-                int pxres = -1;
-
-                if (action == KeyboardActions::SKIN_LAYOUT_GRID)
-                {
-                    pxres = Surge::Storage::getUserDefaultValue(
-                        &(synth->storage), Surge::Storage::LayoutGridResolution, 20);
-                };
-
                 if (frame->getIndexOfChildComponent(aboutScreen.get()) >= 0)
                 {
-                    bool doShowAgain = false;
-
-                    if ((action == KeyboardActions::SKIN_LAYOUT_GRID &&
-                         aboutScreen->devModeGrid == -1) ||
-                        (action == KeyboardActions::TOGGLE_ABOUT && aboutScreen->devModeGrid > -1))
-                    {
-                        doShowAgain = true;
-                    }
-
                     hideAboutScreen();
-
-                    if (doShowAgain)
-                    {
-                        showAboutScreen(pxres);
-                    }
                 }
                 else
                 {
-                    showAboutScreen(pxres);
+                    showAboutScreen();
                 }
 
                 return true;
@@ -7208,35 +7043,6 @@ void SurgeGUIEditor::removeUnusedTrackedComponents()
         p->removeChildComponent(c.first);
     }
     frame->repaint();
-}
-
-void SurgeGUIEditor::globalFocusChanged(juce::Component *fc)
-{
-    if (!frame)
-        return;
-
-    auto newRect = juce::Rectangle<int>();
-    if (fc)
-    {
-        newRect = frame->getLocalArea(fc->getParentComponent(), fc->getBounds());
-        frame->focusRectangle = newRect;
-    }
-    else
-    {
-        frame->focusRectangle = juce::Rectangle<int>();
-    }
-    if (debugFocus)
-    {
-        frame->repaint();
-
-        std::cout << "FC [" << fc << "] ";
-        if (fc)
-        {
-            std::cout << fc->getTitle() << " " << typeid(*fc).name() << " " << newRect.toString()
-                      << " " << fc->getAccessibilityHandler() << " " << fc->getTitle();
-        }
-        std::cout << std::endl;
-    }
 }
 
 bool SurgeGUIEditor::promptForOKCancelWithDontAskAgain(

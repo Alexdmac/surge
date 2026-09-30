@@ -55,19 +55,11 @@ enum KeyboardActions
     TOGGLE_SCENE,
     TOGGLE_MODULATOR_ARM,
 
-#if INCLUDE_PATCH_BROWSER
-    TOGGLE_PATCH_BROWSER,
-#endif
-#if WINDOWS
-    TOGGLE_DEBUG_CONSOLE,
-#endif
-    TOGGLE_KEYBIND_EDITOR,
     TOGGLE_LFO_EDITOR,
 #if HAS_LUA
     TOGGLE_WTS_EDITOR,
 #endif
     TOGGLE_MODLIST,
-    TOGGLE_TUNING_EDITOR,
     TOGGLE_OSCILLOSCOPE,
     TOGGLE_VIRTUAL_KEYBOARD,
 
@@ -87,7 +79,6 @@ enum KeyboardActions
     FOCUS_PRIOR_CONTROL_GROUP,
 
     REFRESH_SKIN,
-    SKIN_LAYOUT_GRID,
 
     OPEN_MANUAL,
     TOGGLE_ABOUT,
@@ -140,18 +131,6 @@ inline std::string keyboardActionName(KeyboardActions a)
     case TOGGLE_MODULATOR_ARM:
         return "TOGGLE_MODULATOR_ARM";
 
-#if INCLUDE_PATCH_BROWSER
-    case TOGGLE_PATCH_BROWSER:
-        return "TOGGLE_PATCH_BROWSER";
-#endif
-
-#if WINDOWS
-    case TOGGLE_DEBUG_CONSOLE:
-        return "TOGGLE_DEBUG_CONSOLE";
-#endif
-
-    case TOGGLE_KEYBIND_EDITOR:
-        return "SHOW_KEYBINDINGS_EDITOR";
     case TOGGLE_LFO_EDITOR:
         return "SHOW_LFO_EDITOR";
 #if HAS_LUA
@@ -160,8 +139,6 @@ inline std::string keyboardActionName(KeyboardActions a)
 #endif
     case TOGGLE_MODLIST:
         return "SHOW_MODLIST";
-    case TOGGLE_TUNING_EDITOR:
-        return "SHOW_TUNING_EDITOR";
     case TOGGLE_VIRTUAL_KEYBOARD:
         return "TOGGLE_VIRTUAL_KEYBOARD";
     case TOGGLE_OSCILLOSCOPE:
@@ -191,8 +168,6 @@ inline std::string keyboardActionName(KeyboardActions a)
 
     case REFRESH_SKIN:
         return "REFRESH_SKIN";
-    case SKIN_LAYOUT_GRID:
-        return "SKIN_LAYOUT_GRID";
 
     case FOCUS_NEXT_CONTROL_GROUP:
         return "FOCUS_NEXT_CONTROL_GROUP";
@@ -279,14 +254,6 @@ inline std::string keyboardActionDescription(KeyboardActions a)
         desc = "Toggle Modulator Armed State";
         break;
 
-#if WINDOWS
-    case TOGGLE_DEBUG_CONSOLE:
-        desc = "Debug Console";
-        break;
-#endif
-    case TOGGLE_KEYBIND_EDITOR:
-        desc = "Keyboard Shortcut Editor";
-        break;
     case TOGGLE_LFO_EDITOR:
         desc = "LFO Editor (MSEG or Formula)";
         break;
@@ -297,9 +264,6 @@ inline std::string keyboardActionDescription(KeyboardActions a)
 #endif
     case TOGGLE_MODLIST:
         desc = "Modulation List";
-        break;
-    case TOGGLE_TUNING_EDITOR:
-        desc = "Tuning Editor";
         break;
     case TOGGLE_VIRTUAL_KEYBOARD:
         desc = "Virtual Keyboard";
@@ -347,9 +311,6 @@ inline std::string keyboardActionDescription(KeyboardActions a)
 
     case REFRESH_SKIN:
         desc = "Refresh Skin";
-        break;
-    case SKIN_LAYOUT_GRID:
-        desc = "Toggle Layout Grid";
         break;
 
     case FOCUS_NEXT_CONTROL_GROUP:

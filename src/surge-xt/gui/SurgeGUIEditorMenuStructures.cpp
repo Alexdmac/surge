@@ -374,13 +374,6 @@ juce::PopupMenu SurgeGUIEditor::makeTuningMenu(const juce::Point<int> &where, bo
         tuningSubMenu.addItem(Surge::GUI::toOSCase("Current Tuning: ") + mtsScale, false, false,
                               []() {});
 
-        std::string openname = isAnyOverlayPresent(TUNING_EDITOR) ? "Close " : "Open ";
-
-        Surge::GUI::addMenuItemWithShortcut(
-            tuningSubMenu, Surge::GUI::toOSCase(openname + "Tuning Visualizer..."),
-            getShortcutDescription(Surge::GUI::KeyboardActions::TOGGLE_TUNING_EDITOR),
-            [this]() { this->toggleOverlay(TUNING_EDITOR); });
-
         tuningSubMenu.addSeparator();
     }
 #endif
@@ -415,15 +408,6 @@ juce::PopupMenu SurgeGUIEditor::makeTuningMenu(const juce::Point<int> &where, bo
         {
             tuningSubMenu.addSeparator();
         }
-
-        std::string openname = isAnyOverlayPresent(TUNING_EDITOR) ? "Close " : "Open ";
-
-        Surge::GUI::addMenuItemWithShortcut(
-            tuningSubMenu, Surge::GUI::toOSCase(openname + "Tuning Editor..."),
-            getShortcutDescription(Surge::GUI::KeyboardActions::TOGGLE_TUNING_EDITOR),
-            [this]() { this->toggleOverlay(TUNING_EDITOR); });
-
-        tuningSubMenu.addSeparator();
 
         tuningSubMenu.addItem(
             Surge::GUI::toOSCase("Set to Standard Tuning"), !this->synth->storage.isStandardTuning,
@@ -1221,12 +1205,6 @@ juce::PopupMenu SurgeGUIEditor::makePatchDefaultsMenu(const juce::Point<int> &wh
 
     patchDefMenu.addSubMenu(Surge::GUI::toOSCase("Tuning on Patch Load"), tuningOnLoadMenu);
 
-    patchDefMenu.addSeparator();
-    patchDefMenu.addItem(Surge::GUI::toOSCase("Export Patch as Text (Non-Default Parameters Only)"),
-                         true, false, [this]() { showHTML(patchToHtml()); });
-    patchDefMenu.addItem(Surge::GUI::toOSCase("Export Patch as Text (All Parameters)"), true, false,
-                         [this]() { showHTML(patchToHtml(true)); });
-
     return patchDefMenu;
 }
 
@@ -1394,10 +1372,6 @@ juce::PopupMenu SurgeGUIEditor::makeWorkflowMenu(const juce::Point<int> &where)
 
     wfMenu.addItem(Surge::GUI::toOSCase("Use Keyboard Shortcuts"), true, kbShortcuts,
                    [this]() { toggleUseKeyboardShortcuts(); });
-    Surge::GUI::addMenuItemWithShortcut(
-        wfMenu, Surge::GUI::toOSCase("Edit Keyboard Shortcuts..."),
-        getShortcutDescription(Surge::GUI::KeyboardActions::TOGGLE_KEYBIND_EDITOR), true, false,
-        [this]() { toggleOverlay(KEYBINDINGS_EDITOR); });
 
     bool knMode = Surge::Storage::getUserDefaultValue(
         &(this->synth->storage), Surge::Storage::MenuAndEditKeybindingsFollowKeyboardFocus, true);
@@ -1610,37 +1584,6 @@ juce::PopupMenu SurgeGUIEditor::makeSkinMenu(const juce::Point<int> &where)
 
     skinSubMenu.addSeparator();
 
-    if (useDevMenu)
-    {
-        int pxres = Surge::Storage::getUserDefaultValue(&(synth->storage),
-                                                        Surge::Storage::LayoutGridResolution, 20);
-
-        auto m = std::string("Show Layout Grid (") + std::to_string(pxres) + " px)";
-
-        skinSubMenu.addItem(Surge::GUI::toOSCase(m),
-                            [this, pxres]() { this->showAboutScreen(pxres); });
-
-        skinSubMenu.addItem(Surge::GUI::toOSCase("Set Layout Grid Resolution..."), [this, pxres]() {
-            this->promptForMiniEdit(
-                std::to_string(pxres), "Enter a new value:", "Layout Grid Resolution",
-                juce::Point<int>{400, 400},
-                [this](const std::string &s) {
-                    auto val = std::atoi(s.c_str());
-
-                    if (val < 4)
-                    {
-                        val = 4;
-                    }
-
-                    Surge::Storage::updateUserDefaultValue(
-                        &(this->synth->storage), Surge::Storage::LayoutGridResolution, val);
-                },
-                mainMenu);
-        });
-
-        skinSubMenu.addSeparator();
-    }
-
     Surge::GUI::addMenuItemWithShortcut(
         skinSubMenu, Surge::GUI::toOSCase("Reload Current Skin"),
         getShortcutDescription(Surge::GUI::KeyboardActions::REFRESH_SKIN),
@@ -1674,37 +1617,10 @@ juce::PopupMenu SurgeGUIEditor::makeSkinMenu(const juce::Point<int> &where)
         juceEditor->getSurgeLookAndFeel()->onSkinChanged();
     };
 
-    skinSubMenu.addSeparator();
-
-    if (useDevMenu)
-    {
-        skinSubMenu.addItem(Surge::GUI::toOSCase("Open Current Skin Folder..."), [this]() {
-            Surge::GUI::openFileOrFolder(string_to_path(this->currentSkin->root) /
-                                         this->currentSkin->name);
-        });
-    }
-    else
-    {
-        skinSubMenu.addItem(Surge::GUI::toOSCase("Install a New Skin..."), [this]() {
-            Surge::GUI::openFileOrFolder(this->synth->storage.userSkinsPath);
-        });
-    }
-
-    skinSubMenu.addSeparator();
-
     skinSubMenu.addItem(Surge::GUI::toOSCase("Menu Colors Follow OS Light/Dark Mode"), true,
                         menuMode == 1, [resetMenuTo]() { resetMenuTo(1); });
     skinSubMenu.addItem(Surge::GUI::toOSCase("Menu Colors Applied from Skin"), true, menuMode == 2,
                         [resetMenuTo]() { resetMenuTo(2); });
-
-    skinSubMenu.addSeparator();
-
-    skinSubMenu.addItem(Surge::GUI::toOSCase("Show Skin Inspector..."),
-                        [this]() { showHTML(skinInspectorHtml()); });
-
-    skinSubMenu.addItem(Surge::GUI::toOSCase("Skin Development Guide..."), []() {
-        juce::URL("https://surge-synthesizer.github.io/skin-manual/").launchInDefaultBrowser();
-    });
 
     return skinSubMenu;
 }
@@ -1885,10 +1801,6 @@ juce::PopupMenu SurgeGUIEditor::makeMidiMenu(const juce::Point<int> &where)
         }
     });
 
-    midiSubMenu.addSeparator();
-
-    midiSubMenu.addItem(Surge::GUI::toOSCase("Show Current MIDI Mapping..."),
-                        [this]() { showHTML(this->midiMappingToHtml()); });
 
     if (!scannedForMidiPresets)
     {
@@ -1939,56 +1851,6 @@ juce::PopupMenu SurgeGUIEditor::makeOSCMenu(const juce::Point<int> &where)
     });
 
     return oscSubMenu;
-}
-
-juce::PopupMenu SurgeGUIEditor::makeDevMenu(const juce::Point<int> &where)
-{
-    auto devSubMenu = juce::PopupMenu();
-
-#if WINDOWS
-    Surge::GUI::addMenuItemWithShortcut(
-        devSubMenu, Surge::GUI::toOSCase("Show Debug Console..."),
-        getShortcutDescription(Surge::GUI::KeyboardActions::TOGGLE_DEBUG_CONSOLE),
-        []() { Surge::Debug::toggleConsole(); });
-#endif
-
-    devSubMenu.addItem(Surge::GUI::toOSCase("Use Focus Debugger"), true, debugFocus, [this]() {
-        debugFocus = !debugFocus;
-        frame->debugFocus = debugFocus;
-        frame->repaint();
-    });
-
-    devSubMenu.addItem(Surge::GUI::toOSCase("Dump Undo/Redo Stack to stdout"), true, false,
-                       [this]() { undoManager()->dumpStack(); });
-
-#if SURGE_INCLUDE_MELATONIN_INSPECTOR
-    if (melatoninInspector)
-    {
-        devSubMenu.addItem("Close Melatonin Inspector", [this]() {
-            if (melatoninInspector)
-            {
-                melatoninInspector->setVisible(false);
-                melatoninInspector.reset();
-            }
-        });
-    }
-    else
-    {
-        devSubMenu.addItem("Launch Melatonin Inspector", [this] {
-            melatoninInspector = std::make_unique<melatonin::Inspector>(*frame);
-            melatoninInspector->onClose = [this]() { melatoninInspector.reset(); };
-
-            melatoninInspector->setVisible(true);
-        });
-    }
-#endif
-
-#ifdef INSTRUMENT_UI
-    devSubMenu.addItem(Surge::GUI::toOSCase("Show UI Instrumentation..."),
-                       []() { Surge::Debug::report(); });
-#endif
-
-    return devSubMenu;
 }
 
 /* SHOW */
@@ -2069,44 +1931,10 @@ void SurgeGUIEditor::showSettingsMenu(const juce::Point<int> &where,
 
     settingsMenu.addSeparator();
 
-#if BUILD_IS_DEBUG
-    useDevMenu = true;
-#endif
-
-    if (useDevMenu)
-    {
-        settingsMenu.addSeparator();
-
-        auto devSubMenu = makeDevMenu(where);
-        settingsMenu.addSubMenu(Surge::GUI::toOSCase("Developer Options"), devSubMenu);
-    }
-
-    settingsMenu.addSeparator();
-
-    settingsMenu.addItem(Surge::GUI::toOSCase("Reach the Developers..."), []() {
-        juce::URL(fmt::format("{}feedback", stringWebsite)).launchInDefaultBrowser();
-    });
-
-    settingsMenu.addItem(Surge::GUI::toOSCase("Read the Code..."),
-                         []() { juce::URL(stringRepository).launchInDefaultBrowser(); });
-
-    settingsMenu.addItem(Surge::GUI::toOSCase("Download Additional Content..."), []() {
-        juce::URL(fmt::format("{}surge-synthesizer.github.io/wiki/Additional-Content",
-                              stringOrganization))
-            .launchInDefaultBrowser();
-    });
-
-    settingsMenu.addItem(Surge::GUI::toOSCase("Skin Library..."), []() {
-        juce::URL(fmt::format("{}skin-library", stringWebsite)).launchInDefaultBrowser();
-    });
-
     Surge::GUI::addMenuItemWithShortcut(
         settingsMenu, Surge::GUI::toOSCase("Surge XT Manual..."),
         getShortcutDescription(Surge::GUI::KeyboardActions::OPEN_MANUAL),
         []() { juce::URL(stringManual).launchInDefaultBrowser(); });
-
-    settingsMenu.addItem(Surge::GUI::toOSCase("Surge XT Website..."),
-                         []() { juce::URL(stringWebsite).launchInDefaultBrowser(); });
 
     settingsMenu.addSeparator();
 

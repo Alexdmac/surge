@@ -2175,391 +2175,6 @@ void CodeEditorContainerWithApply::loadState()
     }
 }
 
-struct ExpandingFormulaDebugger : public juce::Component,
-                                  public Surge::GUI::SkinConsumingComponent,
-                                  juce::TextEditor::Listener
-{
-    bool isOpen{false};
-
-    std::unique_ptr<Textfield> searchfield;
-
-    ExpandingFormulaDebugger(FormulaModulatorEditor *ed) : editor(ed)
-    {
-        debugTableDataModel = std::make_unique<DebugDataModel>();
-
-        debugTableDataModel->setEditor(editor);
-
-        debugTableDataModel.get()->onClick = [this, ed]() { refreshDebuggerView(); };
-
-        debugTable = std::make_unique<juce::TableListBox>("Debug", debugTableDataModel.get());
-        debugTable->getHeader().addColumn("key", 1, 50);
-        debugTable->getHeader().addColumn("value", 2, 50);
-        debugTable->setHeaderHeight(0);
-        debugTable->getHeader().setVisible(false);
-        debugTable->setRowHeight(14);
-        addAndMakeVisible(*debugTable);
-
-        searchfield = std::make_unique<Textfield>(0);
-
-        searchfield->setHeader("Filter");
-
-        searchfield->addListener(this);
-        addAndMakeVisible(*searchfield);
-
-        searchfield->setText(editor->getEditState().debuggerFilterText);
-
-        searchfield->onTextChange = [this]() {
-            editor->getEditState().debuggerFilterText = searchfield->getText().toStdString();
-        };
-
-        // searchfield = std::make_unique<Textfield>(0);
-
-        // searchfield->setBorder(juce::BorderSize(-1, 4, 0, 4));
-    }
-
-    FormulaModulatorEditor *editor{nullptr};
-
-    pdata tp[n_scene_params];
-
-    void textEditorTextChanged(juce::TextEditor &) override
-    {
-        // std::cout << "text editor changed" << searchfield->getText() << "\n";
-        updateDebuggerWithOptionalStep(false);
-    }
-
-    void initializeLfoDebugger()
-    {
-        auto lfodata = editor->lfos;
-
-        tp[lfodata->delay.param_id_in_scene].i = lfodata->delay.val.i;
-        tp[lfodata->attack.param_id_in_scene].i = lfodata->attack.val.i;
-        tp[lfodata->hold.param_id_in_scene].i = lfodata->hold.val.i;
-        tp[lfodata->decay.param_id_in_scene].i = lfodata->decay.val.i;
-        tp[lfodata->sustain.param_id_in_scene].i = lfodata->sustain.val.i;
-        tp[lfodata->release.param_id_in_scene].i = lfodata->release.val.i;
-
-        tp[lfodata->magnitude.param_id_in_scene].i = lfodata->magnitude.val.i;
-        tp[lfodata->rate.param_id_in_scene].i = lfodata->rate.val.i;
-        tp[lfodata->shape.param_id_in_scene].i = lfodata->shape.val.i;
-        tp[lfodata->start_phase.param_id_in_scene].i = lfodata->start_phase.val.i;
-        tp[lfodata->deform.param_id_in_scene].i = lfodata->deform.val.i;
-        tp[lfodata->trigmode.param_id_in_scene].i = lm_keytrigger;
-
-        lfoDebugger = std::make_unique<LFOModulationSource>();
-        lfoDebugger->assign(editor->storage, editor->lfos, tp, 0, nullptr, nullptr,
-                            editor->formulastorage, true);
-
-        if (editor->lfo_id < n_lfos_voice)
-        {
-            lfoDebugger->setIsVoice(true);
-        }
-        else
-        {
-            lfoDebugger->setIsVoice(false);
-        }
-
-        if (lfoDebugger->isVoice)
-        {
-            lfoDebugger->formulastate.velocity = 100;
-        }
-
-        lfoDebugger->attack();
-
-        stepLfoDebugger();
-
-        if (editor->editor)
-            editor->editor->enqueueAccessibleAnnouncement("Reset Debugger");
-    }
-
-    void refreshDebuggerView() { updateDebuggerWithOptionalStep(false); }
-
-    void stepLfoDebugger() { updateDebuggerWithOptionalStep(true); }
-
-    void updateDebuggerWithOptionalStep(bool doStep)
-    {
-        if (doStep)
-        {
-            Surge::Formula::setupEvaluatorStateFrom(lfoDebugger->formulastate,
-                                                    editor->storage->getPatch(), editor->scene);
-
-            lfoDebugger->process_block();
-        }
-        else
-        {
-            auto &formulastate = lfoDebugger->formulastate;
-            auto &localcopy = tp;
-            auto lfodata = editor->lfos;
-            auto storage = editor->storage;
-
-            formulastate.rate = localcopy[lfodata->rate.param_id_in_scene].f;
-            formulastate.amp = localcopy[lfodata->magnitude.param_id_in_scene].f;
-            formulastate.phase = localcopy[lfodata->start_phase.param_id_in_scene].f;
-            formulastate.deform = localcopy[lfodata->deform.param_id_in_scene].f;
-            formulastate.tempo = storage->temposyncratio * 120.0;
-            formulastate.songpos = storage->songpos;
-            formulastate.isPlaying = storage->isPlaying;
-
-            Surge::Formula::setupEvaluatorStateFrom(lfoDebugger->formulastate,
-                                                    editor->storage->getPatch(), editor->scene);
-            float out[Surge::Formula::max_formula_outputs];
-            Surge::Formula::valueAt(lfoDebugger->getIntPhase(), lfoDebugger->getPhase(), storage,
-                                    lfoDebugger->fs, &formulastate, out, false);
-        }
-
-        auto f = searchfield->getText();
-        auto st = Surge::Formula::createDebugDataOfModState(
-            lfoDebugger->formulastate, searchfield->getText().toStdString(),
-            editor->getEditState().debuggerGroupState);
-
-        if (debugTableDataModel && debugTable)
-        {
-            debugTableDataModel->setRows(st);
-            debugTable->updateContent();
-            debugTable->repaint();
-        }
-
-        if (editor->editor)
-            editor->editor->enqueueAccessibleAnnouncement("Stepped Debugger");
-    }
-
-    std::unique_ptr<juce::TableListBox> debugTable;
-
-    struct DebugDataModel : public juce::TableListBoxModel,
-                            public Surge::GUI::SkinConsumingComponent
-    {
-
-        std::function<void()> onClick;
-        FormulaModulatorEditor *editor;
-
-        void setEditor(FormulaModulatorEditor *ed) { editor = ed; }
-
-        std::vector<Surge::Formula::DebugRow> rows;
-        void setRows(const std::vector<Surge::Formula::DebugRow> &r) { rows = r; }
-        int getNumRows() override { return rows.size(); }
-
-        void cellClicked(int rowNumber, int columnId, const juce::MouseEvent &) override
-        {
-
-            const auto &r = rows[rowNumber];
-
-            if (r.isHeader == true)
-            {
-                editor->getEditState().debuggerGroupState[r.group] =
-                    editor->getEditState().debuggerGroupState[r.group] == false;
-            }
-            onClick();
-        }
-
-        void paintRowBackground(juce::Graphics &g, int rowNumber, int width, int height,
-                                bool rowIsSelected) override
-        {
-            const auto &r = rows[rowNumber];
-
-            auto color = rowNumber % 2 == 0 ? Colors ::FormulaEditor::Debugger::LightRow
-                                            : Colors::FormulaEditor::Debugger::Row;
-
-            auto interpolateStrength = r.isHeader ? 0.15 : r.isUserDefined ? 0.0 : 0;
-
-            g.fillAll(skin->getColor(color).interpolatedWith(
-                skin->getColor(Colors ::FormulaEditor::Lua::Identifier), interpolateStrength));
-        }
-
-        std::string getText(int rowNumber, int columnId)
-        {
-            const auto &r = rows[rowNumber];
-
-            if (columnId == 1)
-            {
-                return r.label;
-            }
-            else if (columnId == 2)
-            {
-                if (!r.hasValue)
-                {
-                    return "";
-                }
-                else if (auto fv = std::get_if<float>(&r.value))
-                {
-                    return fmt::format("{:.3f}", *fv);
-                }
-                else if (auto sv = std::get_if<std::string>(&r.value))
-                {
-                    return *sv;
-                }
-            }
-            return "";
-        }
-
-        void paintCell(juce::Graphics &g, int rowNumber, int columnId, int w, int h,
-                       bool rowIsSelected) override
-        {
-            if (rowNumber < 0 || rowNumber >= rows.size())
-                return;
-
-            auto b = juce::Rectangle<int>(0, 0, w, h);
-
-            const auto &r = rows[rowNumber];
-
-            g.setFont(skin->fontManager->getFiraMonoAtSize(8.5));
-            b = b.withTrimmedLeft(4);
-
-            float alpha = 1;
-
-            if (r.filterFlag == Surge::Formula::DebugRow::Ignore)
-                alpha = 0.5;
-
-            if (r.isInternal)
-                g.setColour(skin->getColor(Colors::FormulaEditor::Debugger::InternalText));
-            else
-                g.setColour(skin->getColor(Colors::FormulaEditor::Debugger::Text).withAlpha(alpha));
-
-            if (r.isHeader && columnId == 1)
-            {
-
-                g.setFont(skin->fontManager->getFiraMonoAtSize(8.5, juce::Font::bold));
-                g.drawText(getText(rowNumber, columnId), b, juce::Justification::centredLeft);
-
-                // draw arrow
-                auto path = juce::Path();
-                auto size = 4;
-                auto arrowMarginX = 4.5;
-                auto arrowMarginY = h * 0.5;
-
-                path.startNewSubPath(0, -size * 0.4);
-                path.lineTo(-size * 0.5, size * 0.4);
-                path.lineTo(size * 0.5, size * 0.4);
-
-                float arrowRotation = 0;
-
-                arrowRotation = editor->getEditState().debuggerGroupState[r.group] ? M_PI : 0;
-
-                path.applyTransform(juce::AffineTransform()
-                                        .rotated(arrowRotation)
-                                        .translated(arrowMarginX, arrowMarginY));
-
-                g.setFillType(
-                    juce::FillType(skin->getColor(Colors::FormulaEditor::Debugger::Text)));
-
-                g.fillPath(path);
-            }
-            else if (columnId == 1)
-            {
-                b = b.withTrimmedLeft(r.depth * 10);
-                g.drawText(getText(rowNumber, columnId), b, juce::Justification::centredLeft);
-            }
-            else if (columnId == 2)
-            {
-                b = b.withTrimmedRight(2);
-                g.drawText(getText(rowNumber, columnId), b, juce::Justification::centredRight);
-            }
-            else
-            {
-                g.setColour(juce::Colours::red);
-                g.fillRect(b);
-            }
-        }
-
-        struct DebugCell : juce::Label
-        {
-
-            int row{0}, col{0};
-            DebugDataModel *model{nullptr};
-            DebugCell(DebugDataModel *m) : model(m) {}
-            void paint(juce::Graphics &g) override
-            {
-                model->paintCell(g, row, col, getWidth(), getHeight(), false);
-            }
-
-            void updateAccessibility()
-            {
-                setAccessible(true);
-                setText(model->getText(row, col), juce::dontSendNotification);
-            }
-
-            JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(DebugCell);
-        };
-        friend class DebugCell;
-
-        Component *refreshComponentForCell(int rowNumber, int columnId, bool isRowSelected,
-                                           Component *existingComponentToUpdate) override
-        {
-            DebugCell *cell{nullptr};
-            if (existingComponentToUpdate)
-            {
-                cell = dynamic_cast<DebugCell *>(existingComponentToUpdate);
-                if (!cell)
-                    delete existingComponentToUpdate;
-            }
-            if (!cell)
-            {
-                cell = new DebugCell(this);
-            }
-            cell->row = rowNumber;
-            cell->col = columnId;
-            cell->updateAccessibility();
-            cell->setInterceptsMouseClicks(false, true);
-            return cell;
-        }
-    };
-
-    std::unique_ptr<DebugDataModel> debugTableDataModel;
-
-    std::unique_ptr<juce::Label> dPhaseLabel;
-
-    void paint(juce::Graphics &g) override { g.fillAll(skin->getColor(Colors::MSEGEditor::Panel)); }
-
-    void onSkinChanged() override
-    {
-
-        searchfield->applyFontToAllText(skin->fontManager->getLatoAtSize(9.5, juce::Font::plain));
-        searchfield->setColour(juce::TextEditor::ColourIds::textColourId,
-                               skin->getColor(Colors::Dialog::Button::Text));
-        searchfield->setColour(juce::TextEditor::backgroundColourId,
-                               skin->getColor(Colors::FormulaEditor::Background).darker(0.4f));
-        searchfield->setColour(juce::TextEditor::focusedOutlineColourId,
-                               skin->getColor(Colors::FormulaEditor::Background).brighter(0.08f));
-        searchfield->setColour(juce::TextEditor::outlineColourId,
-                               skin->getColor(Colors::FormulaEditor::Background));
-
-        searchfield->setText(searchfield->getText());
-        searchfield->setHeaderColor(skin->getColor(Colors::Dialog::Button::Text));
-
-        debugTableDataModel->setSkin(skin, associatedBitmapStore);
-
-        searchfield->applyColourToAllText(skin->getColor(Colors::Dialog::Button::Text), true);
-    }
-
-    void setOpen(bool b)
-    {
-        isOpen = b;
-        editor->getEditState().debuggerOpen = b;
-        setVisible(b);
-        editor->resized();
-    }
-
-    void resized() override
-    {
-        if (isOpen)
-        {
-            int margin = 0;
-
-            // debugTable->setBounds(getLocalBounds().reduced(margin));
-
-            debugTable->setBounds(getLocalBounds().translated(0, 9).reduced(0, 9));
-            auto w = getLocalBounds().reduced(margin).getWidth() - 10;
-            debugTable->getHeader().setColumnWidth(1, w / 2);
-            debugTable->getHeader().setColumnWidth(2, w / 2);
-
-            searchfield->setBounds(getLocalBounds().withHeight(18));
-        }
-    }
-
-    std::unique_ptr<LFOModulationSource> lfoDebugger;
-
-  private:
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ExpandingFormulaDebugger);
-};
-
 struct FormulaControlArea : public juce::Component,
                             public Surge::GUI::SkinConsumingComponent,
                             public Surge::GUI::IComponentTagValue::Listener
@@ -2567,10 +2182,7 @@ struct FormulaControlArea : public juce::Component,
     enum tags
     {
         tag_select_tab = 0x575200,
-        tag_code_apply,
-        tag_debugger_show,
-        tag_debugger_init,
-        tag_debugger_step
+        tag_code_apply
     };
 
     FormulaModulatorEditor *overlay{nullptr};
@@ -2595,22 +2207,6 @@ struct FormulaControlArea : public juce::Component,
         if (skin)
         {
             rebuild();
-        }
-    }
-
-    // Set the button text and its accessible name, notifying the screen reader ourselves
-    // since setTitle() does not.
-    void updateShowButtonText(bool isOpen)
-    {
-        const auto title = isOpen ? "Hide Debugger" : "Show Debugger";
-
-        showS->setLabels({isOpen ? "Hide" : "Show"});
-        showS->setTitle(title);
-        showS->setDescription(title);
-
-        if (auto *h = showS->getAccessibilityHandler())
-        {
-            h->notifyAccessibilityEvent(juce::AccessibilityEvent::titleChanged);
         }
     }
 
@@ -2671,56 +2267,6 @@ struct FormulaControlArea : public juce::Component,
             applyS->setExplicitFocusOrder(20);
             addAndMakeVisible(*applyS);
         }
-
-        // Debugger Controls from the left
-        {
-            debugL = newL("Debugger");
-            debugL->setBounds(getWidth() - 24 - 100, 1, 100, labelHeight);
-            debugL->setJustificationType(juce::Justification::centredRight);
-            addAndMakeVisible(*debugL);
-
-            int btnWidth = 60;
-            int bpos = getWidth() - 10 - btnWidth;
-            int ypos = 1 + labelHeight + margin;
-
-            auto ma = [&](const std::string &label, const std::string title, tags tag,
-                          int focusOrder) {
-                auto res = std::make_unique<Surge::Widgets::MultiSwitchSelfDraw>();
-                auto btnrect = juce::Rectangle<int>(bpos, ypos - 1, btnWidth, buttonHeight);
-
-                res->setBounds(btnrect);
-                res->setStorage(overlay->storage);
-                res->setTitle(title);
-                res->setDescription(title);
-                res->setLabels({label});
-                res->addListener(this);
-                res->setTag(tag);
-                res->setHeightOfOneImage(buttonHeight);
-                res->setRows(1);
-                res->setColumns(1);
-                res->setDraggable(false);
-                res->setSkin(skin, associatedBitmapStore);
-                res->setValue(0);
-                res->setExplicitFocusOrder(focusOrder);
-                return res;
-            };
-
-            auto isOpen = overlay->debugPanel->isOpen;
-            showS = ma(isOpen ? "Hide" : "Show", isOpen ? "Hide Debugger" : "Show Debugger",
-                       tag_debugger_show, 30);
-            addAndMakeVisible(*showS);
-            bpos -= btnWidth + margin;
-
-            stepS = ma("Step", "Step Debugger", tag_debugger_step, 50);
-            stepS->setVisible(isOpen);
-            addChildComponent(*stepS);
-            bpos -= btnWidth + margin;
-
-            initS = ma("Init", "Init Debugger", tag_debugger_init, 40);
-            initS->setVisible(isOpen);
-            addChildComponent(*initS);
-            bpos -= btnWidth + margin;
-        }
     }
 
     std::unique_ptr<juce::Label> newL(const std::string &s)
@@ -2741,9 +2287,6 @@ struct FormulaControlArea : public juce::Component,
         {
         case tag_select_tab:
         case tag_code_apply:
-        case tag_debugger_show:
-        case tag_debugger_init:
-        case tag_debugger_step:
         {
             auto contextMenu = juce::PopupMenu();
 
@@ -2783,45 +2326,13 @@ struct FormulaControlArea : public juce::Component,
         case tag_code_apply:
             overlay->applyCode();
             break;
-        case tag_debugger_show:
-        {
-            if (overlay->debugPanel->isOpen)
-            {
-                overlay->debugPanel->setOpen(false);
-                updateShowButtonText(false);
-                stepS->setVisible(false);
-                initS->setVisible(false);
-            }
-            else
-            {
-                overlay->debugPanel->setOpen(true);
-                updateShowButtonText(true);
-                stepS->setVisible(true);
-                initS->setVisible(true);
-                overlay->debugPanel->initializeLfoDebugger();
-            }
-            repaint();
-        }
-        break;
-        case tag_debugger_init:
-            overlay->debugPanel->initializeLfoDebugger();
-            break;
-        case tag_debugger_step:
-        {
-            if (!overlay->debugPanel->lfoDebugger)
-            {
-                overlay->debugPanel->initializeLfoDebugger();
-            }
-            overlay->debugPanel->stepLfoDebugger();
-        }
-        break;
         default:
             break;
         }
     }
 
-    std::unique_ptr<juce::Label> codeL, debugL;
-    std::unique_ptr<Surge::Widgets::MultiSwitchSelfDraw> codeS, applyS, showS, initS, stepS;
+    std::unique_ptr<juce::Label> codeL;
+    std::unique_ptr<Surge::Widgets::MultiSwitchSelfDraw> codeS, applyS;
 
     void paint(juce::Graphics &g) override { g.fillAll(skin->getColor(Colors::MSEGEditor::Panel)); }
 
@@ -2874,10 +2385,6 @@ FormulaModulatorEditor::FormulaModulatorEditor(SurgeGUIEditor *ed, SurgeStorage 
     search->onFocusLost = [this]() { this->saveState(); };
     gotoLine->onFocusLost = [this]() { this->saveState(); };
 
-    debugPanel = std::make_unique<ExpandingFormulaDebugger>(this);
-    debugPanel->setVisible(false);
-    addChildComponent(*debugPanel);
-
     switch (getEditState().codeOrPrelude)
     {
     case 0:
@@ -2886,13 +2393,6 @@ FormulaModulatorEditor::FormulaModulatorEditor(SurgeGUIEditor *ed, SurgeStorage 
     case 1:
         showPreludeCode();
         break;
-    }
-
-    if (getEditState().debuggerOpen)
-    {
-        debugPanel->setOpen(true);
-        debugPanel->initializeLfoDebugger();
-        repaint();
     }
 
     initState(getEditState().codeEditor);
@@ -2912,7 +2412,6 @@ void FormulaModulatorEditor::onSkinChanged()
     preludeDisplay->setFont(skin->getFont(Fonts::LuaEditor::Code));
     EditorColors::setColorsFromSkin(preludeDisplay.get(), skin);
     controlArea->setSkin(skin, associatedBitmapStore);
-    debugPanel->setSkin(skin, associatedBitmapStore);
 }
 
 void FormulaModulatorEditor::applyCode()
@@ -2924,14 +2423,10 @@ void FormulaModulatorEditor::applyCode()
     Surge::Formula::requestSharedDataWipe(storage);
     storage->getPatch().isDirty = true;
     editor->forceLfoDisplayRepaint();
-    updateDebuggerIfNeeded();
     editor->repaintFrame();
     setApplyEnabled(false);
     if (mainEditor->isShowing())
         Surge::GUI::grabKeyboardFocusIfAllowed(mainEditor.get());
-
-    if (debugPanel->isOpen)
-        debugPanel->initializeLfoDebugger();
 }
 
 void FormulaModulatorEditor::forceRefresh()
@@ -2958,23 +2453,10 @@ void FormulaModulatorEditor::resized()
     t.transformPoint(width, height);
 
     int controlHeight = 35;
-    int debugPanelWidth = 0;
-    int debugPanelMargin = 0;
 
-    if (debugPanel->isVisible())
-    {
-        debugPanelWidth = 215;
-        debugPanelMargin = 2;
-    }
-    auto edRect = juce::Rectangle<int>(2, 2, width - 4 - debugPanelMargin - debugPanelWidth,
-                                       height - controlHeight - 4);
+    auto edRect = juce::Rectangle<int>(2, 2, width - 4, height - controlHeight - 4);
     mainEditor->setBounds(edRect);
     preludeDisplay->setBounds(edRect);
-    if (debugPanel->isVisible())
-    {
-        debugPanel->setBounds(width - 4 - debugPanelWidth + debugPanelMargin, 2, debugPanelWidth,
-                              height - 4 - controlHeight);
-    }
     controlArea->setBounds(0, height - controlHeight, width, controlHeight);
 
     search->resize();
@@ -3008,67 +2490,6 @@ std::vector<juce::Component *> FormulaModulatorEditor::getGroupNavigationCompone
     auto *code = mainEditor->isVisible() ? mainEditor.get() : preludeDisplay.get();
 
     return {code, controlArea.get()};
-}
-
-void FormulaModulatorEditor::updateDebuggerIfNeeded()
-{
-    {
-        if (debugPanel->isOpen)
-        {
-            bool anyUpdate{false};
-            auto lfodata = lfos;
-
-#define CK(x)                                                                                      \
-    {                                                                                              \
-        auto &r = debugPanel->tp[lfodata->x.param_id_in_scene];                                    \
-                                                                                                   \
-        if (r.i != lfodata->x.val.i)                                                               \
-        {                                                                                          \
-            r.i = lfodata->x.val.i;                                                                \
-            anyUpdate = true;                                                                      \
-        }                                                                                          \
-    }
-
-            CK(rate);
-            CK(magnitude);
-            CK(start_phase);
-            CK(deform);
-
-            if (debugPanel->lfoDebugger->formulastate.tempo != storage->temposyncratio * 120)
-            {
-                anyUpdate = true;
-            }
-
-#undef CK
-
-#define CKENV(x, y)                                                                                \
-    {                                                                                              \
-        auto &tgt = debugPanel->lfoDebugger->formulastate.x;                                       \
-        auto src = lfodata->y.value_to_normalized(lfodata->y.val.f);                               \
-                                                                                                   \
-        if (tgt != src)                                                                            \
-        {                                                                                          \
-            tgt = src;                                                                             \
-            anyUpdate = true;                                                                      \
-        }                                                                                          \
-    }
-            CKENV(del, delay);
-            CKENV(a, attack);
-            CKENV(h, hold);
-            CKENV(dec, decay);
-            CKENV(s, sustain);
-            CKENV(r, release);
-
-#undef CKENV
-
-            if (anyUpdate)
-            {
-                debugPanel->refreshDebuggerView();
-                editor->repaintFrame();
-            }
-        }
-    }
-    updateDebuggerCounter = (updateDebuggerCounter + 1) & 31;
 }
 
 std::optional<std::pair<std::string, std::string>>

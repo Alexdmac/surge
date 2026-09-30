@@ -24,15 +24,12 @@
 #include "SurgeGUIUtils.h"
 
 #include "overlays/ModulationEditor.h"
-#include "overlays/PatchDBViewer.h"
 #include "overlays/PatchStoreDialog.h"
 #include "overlays/LuaEditors.h"
-#include "overlays/TuningOverlays.h"
 #include "overlays/WaveShaperAnalysis.h"
 #include "overlays/FilterAnalysis.h"
 #include "overlays/Oscilloscope.h"
 #include "overlays/OverlayWrapper.h"
-#include "overlays/KeyBindingsOverlay.h"
 #include "overlays/OpenSoundControlSettings.h"
 #include "widgets/MainFrame.h"
 #include "widgets/WaveShaperSelector.h"
@@ -149,28 +146,6 @@ std::unique_ptr<Surge::Overlays::OverlayComponent> SurgeGUIEditor::createOverlay
 
     switch (olt)
     {
-    case PATCH_BROWSER:
-    {
-        auto pt = std::make_unique<Surge::Overlays::PatchDBViewer>(this, &(this->synth->storage));
-        auto npc = Surge::Skin::Connector::NonParameterConnection::PATCH_BROWSER;
-        auto conn = Surge::Skin::Connector::connectorByNonParameterConnection(npc);
-        auto skinCtrl = currentSkin->getOrCreateControlForConnector(conn);
-        auto yPos = skinCtrl->y + skinCtrl->h - 1;
-        auto xBuf = 25;
-        auto w = getWindowSizeX() - xBuf * 2;
-        auto h = getWindowSizeY() - yPos - xBuf;
-
-        pt->setEnclosingParentPosition(juce::Rectangle<int>(xBuf, yPos, w, h));
-        pt->setEnclosingParentTitle("Patch Database");
-
-        jassert(false); // Make a key for me please!
-
-        pt->setCanTearOut(
-            {true, Surge::Storage::nKeys, Surge::Storage::nKeys, Surge::Storage::nKeys});
-
-        return pt;
-    }
-
     case MSEG_EDITOR:
     {
         auto lfo_id = modsource_editor[current_scene] - ms_lfo1;
@@ -344,26 +319,6 @@ std::unique_ptr<Surge::Overlays::OverlayComponent> SurgeGUIEditor::createOverlay
         return te;
     }
 
-    case TUNING_EDITOR:
-    {
-        auto te = std::make_unique<Surge::Overlays::TuningOverlay>();
-
-        te->setStorage(&(this->synth->storage));
-        te->setEditor(this);
-        te->setSkin(currentSkin, bitmapStore);
-        te->setTuning(tuningForTuningEditor());
-        te->setEnclosingParentTitle("Tuning Editor");
-        te->setCanTearOut({true, Surge::Storage::TuningOverlayLocationTearOut,
-                           Surge::Storage::TuningOverlayTearOutAlwaysOnTop,
-                           Surge::Storage::TuningOverlayTearOutAlwaysOnTop_Plugin});
-        te->setCanTearOutResize({true, Surge::Storage::TuningOverlaySizeTearOut});
-        te->setMinimumSize(730, 400);
-        locationGet(te.get(), Surge::Skin::Connector::NonParameterConnection::TUNING_EDITOR_WINDOW,
-                    Surge::Storage::TuningOverlayLocation);
-
-        return te;
-    }
-
     case WAVESHAPER_ANALYZER:
     {
         auto wsa =
@@ -440,26 +395,6 @@ std::unique_ptr<Surge::Overlays::OverlayComponent> SurgeGUIEditor::createOverlay
         return me;
     }
 
-    case KEYBINDINGS_EDITOR:
-    {
-        auto kb = std::make_unique<Surge::Overlays::KeyBindingsOverlay>(&(synth->storage), this);
-        auto posRect =
-            juce::Rectangle<int>(0, 0, 500, 500).withCentre(frame->getBounds().getCentre());
-
-        kb->setSkin(currentSkin, bitmapStore);
-        kb->setEnclosingParentPosition(posRect);
-        kb->setEnclosingParentTitle("Keyboard Shortcut Editor");
-        kb->setHasIndependentClose(false);
-
-        return kb;
-    }
-
-    // TODO: Implement the action history overlay!
-    case ACTION_HISTORY:
-    {
-        return nullptr;
-    }
-
     default:
         break;
     }
@@ -518,9 +453,6 @@ void SurgeGUIEditor::showOverlay(OverlayTags olt,
         onClose = [this]() { this->synth->refresh_editor = true; };
         break;
     case SAVE_PATCH:
-        isModal = true;
-        break;
-    case KEYBINDINGS_EDITOR:
         isModal = true;
         break;
     default:
@@ -702,7 +634,6 @@ bool SurgeGUIEditor::overlayConsumesKeyboard(OverlayTags ofType)
 {
     switch (ofType)
     {
-    case PATCH_BROWSER:
     case SAVE_PATCH:
     case FORMULA_EDITOR:
         return true;
@@ -823,18 +754,6 @@ bool SurgeGUIEditor::updateOverlayContentIfPresent(OverlayTags tag)
     bool couldRefresh = true;
     switch (tag)
     {
-    case TUNING_EDITOR:
-    {
-        auto tunol = dynamic_cast<Surge::Overlays::TuningOverlay *>(getOverlayIfOpen(tag));
-
-        if (tunol)
-        {
-            // Connecting to or leaving MTS-ESP recreates the editor, which lands here
-            tunol->setMTSMode(isMTSESPClient());
-            tunol->setTuning(tuningForTuningEditor());
-        }
-        break;
-    }
     case MODULATION_EDITOR:
     {
         auto modol = dynamic_cast<Surge::Overlays::ModulationEditor *>(getOverlayIfOpen(tag));

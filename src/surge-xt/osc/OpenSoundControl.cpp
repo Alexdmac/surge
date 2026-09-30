@@ -1027,7 +1027,7 @@ void OpenSoundControl::oscMessageReceived(const juce::OSCMessage &message)
             }
             {
                 std::lock_guard<std::mutex> mg(synth->patchLoadSpawnMutex);
-                strncpy(synth->patchid_file, patchPath.c_str(), FILENAME_MAX);
+                synth->setPatchIdFile(patchPath.c_str());
                 synth->has_patchid_file = true;
             }
             synth->processAudioThreadOpsWhenAudioEngineUnavailable();
@@ -1045,7 +1045,7 @@ void OpenSoundControl::oscMessageReceived(const juce::OSCMessage &message)
             }
             {
                 std::lock_guard<std::mutex> mg(synth->patchLoadSpawnMutex);
-                strncpy(synth->patchid_file, patchPath.u8string().c_str(), FILENAME_MAX);
+                synth->setPatchIdFile(patchPath.u8string().c_str());
                 synth->has_patchid_file = true;
             }
             synth->processAudioThreadOpsWhenAudioEngineUnavailable();

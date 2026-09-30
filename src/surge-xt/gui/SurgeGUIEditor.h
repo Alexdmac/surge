@@ -30,7 +30,6 @@
 #include "SurgeGUICallbackInterfaces.h"
 
 #include "SurgeStorage.h"
-#include "MTSESPTuning.h"
 #include "SurgeImageStore.h"
 
 #include "SurgeSynthesizer.h"
@@ -43,7 +42,6 @@
 #include "overlays/OverlayComponent.h"
 #include "overlays/MSEGEditor.h"
 #include "overlays/OverlayWrapper.h" // This needs to be concrete for inline functions for now
-#include "overlays/TuningOverlays.h"
 #include "widgets/ModulatableControlInterface.h"
 #include "WavetableScriptEvaluator.h"
 #include "WtGenService.h"
@@ -138,7 +136,6 @@ template <> inline int keyCodeFromString<juce::KeyPress>(const std::string &s)
 class SurgeGUIEditor : public Surge::GUI::IComponentTagValue::Listener,
                        public SurgeStorage::ErrorListener,
                        public juce::KeyListener,
-                       public juce::FocusChangeListener,
                        public SurgeSynthesizer::ModulationAPIListener
 {
   public:
@@ -196,8 +193,6 @@ class SurgeGUIEditor : public Surge::GUI::IComponentTagValue::Listener,
     bool keyPressed(const juce::KeyPress &key, juce::Component *originatingComponent) override;
     std::string getShortcutDescription(const Surge::GUI::KeyboardActions action);
 
-    bool debugFocus{false};
-    void globalFocusChanged(juce::Component *fc) override;
 #if SURGE_INCLUDE_MELATONIN_INSPECTOR
     std::unique_ptr<melatonin::Inspector> melatoninInspector;
 #endif
@@ -268,8 +263,6 @@ class SurgeGUIEditor : public Surge::GUI::IComponentTagValue::Listener,
     bool hasASendOrReturnToChangeTo(int pid);
     std::string nameOfStandardReturnToChangeTo(int pid);
     void activateFromCurrentFx();
-
-    uint64_t lastObservedMidiNoteEventCount{0};
 
     modsources getSelectedModsource() { return modsource; }
     void setModsourceSelected(modsources ms, int ms_idx = 0);
@@ -419,14 +412,7 @@ class SurgeGUIEditor : public Surge::GUI::IComponentTagValue::Listener,
     const std::vector<std::vector<float>> *
     findWtPreview(int scene, int osc, const Surge::WavetableScript::WtGenInputs &inputs) const;
 
-    std::string tuningToHtml();
     void tuningChanged();
-
-    // Surge's own tuning, or the one MTS-ESP is sending when this instance is a client
-    bool isMTSESPClient() const;
-    Tunings::Tuning tuningForTuningEditor();
-    void idleTuningEditorForMTSESP();
-    Surge::Storage::MTSESPTuningInfo lastMTSESPTuningInfo;
 
     Surge::Widgets::ModulatableControlInterface *modSourceDragOverTarget{nullptr};
     Surge::Widgets::ModulatableControlInterface::ModulationState priorModulationState;
@@ -444,19 +430,6 @@ class SurgeGUIEditor : public Surge::GUI::IComponentTagValue::Listener,
         synth->refresh_editor = true;
     }
 
-    std::string midiMappingToHtml();
-    std::string patchToHtml(bool includeDefaults = false);
-
-    // These are unused right now
-    enum SkinInspectorFlags
-    {
-        COLORS = 1 << 0,
-        COMPONENTS = 1 << 1,
-
-        ALL = COLORS | COMPONENTS
-    };
-    std::string skinInspectorHtml(SkinInspectorFlags f = ALL);
-
     /*
     ** Modulation Hover Support
     */
@@ -471,23 +444,24 @@ class SurgeGUIEditor : public Surge::GUI::IComponentTagValue::Listener,
      * We have an enumerated set of overlay tags which we can push
      * to the UI. You *have* to give a new overlay type a tag in
      * order for it to work.
+     *
+     * DAW state stores these values as integers ("whichOverlay"), so never
+     * renumber them. Values 3, 7, 11 and 12 belonged to removed overlays
+     * (patch database, tuning editor, keyboard shortcut editor, action
+     * history); createOverlay() returns nullptr for them.
      */
     enum OverlayTags
     {
-        NO_EDITOR,
-        MSEG_EDITOR,
-        SAVE_PATCH,
-        PATCH_BROWSER,
-        MODULATION_EDITOR,
-        FORMULA_EDITOR,
-        WTS_EDITOR,
-        TUNING_EDITOR,
-        WAVESHAPER_ANALYZER,
-        FILTER_ANALYZER,
-        OSCILLOSCOPE,
-        KEYBINDINGS_EDITOR,
-        ACTION_HISTORY,
-        OPEN_SOUND_CONTROL_SETTINGS,
+        NO_EDITOR = 0,
+        MSEG_EDITOR = 1,
+        SAVE_PATCH = 2,
+        MODULATION_EDITOR = 4,
+        FORMULA_EDITOR = 5,
+        WTS_EDITOR = 6,
+        WAVESHAPER_ANALYZER = 8,
+        FILTER_ANALYZER = 9,
+        OSCILLOSCOPE = 10,
+        OPEN_SOUND_CONTROL_SETTINGS = 13,
 
         n_overlay_tags,
     };
@@ -566,7 +540,7 @@ class SurgeGUIEditor : public Surge::GUI::IComponentTagValue::Listener,
         {
             std::lock_guard<std::mutex> mg(synth->patchLoadSpawnMutex);
             undoManager()->pushPatch();
-            strncpy(synth->patchid_file, file.c_str(), FILENAME_MAX);
+            synth->setPatchIdFile(file.c_str());
             synth->patchid_file_isPreset = isPreset;
             synth->has_patchid_file = true;
         }
@@ -941,7 +915,6 @@ class SurgeGUIEditor : public Surge::GUI::IComponentTagValue::Listener,
     juce::PopupMenu makeAccesibilityMenu(const juce::Point<int> &rect);
     juce::PopupMenu makeDataMenu(const juce::Point<int> &rect);
     juce::PopupMenu makeMidiMenu(const juce::Point<int> &rect);
-    juce::PopupMenu makeDevMenu(const juce::Point<int> &rect);
     juce::PopupMenu makeLfoMenu(const juce::Point<int> &rect);
     juce::PopupMenu makeMonoModeOptionsMenu(const juce::Point<int> &rect, bool updateDefaults);
     juce::PopupMenu makeOSCMenu(const juce::Point<int> &where);
@@ -1011,10 +984,6 @@ class SurgeGUIEditor : public Surge::GUI::IComponentTagValue::Listener,
         RECORDS_ANSWER,
         DISABLES_CONFIRMATION
     };
-
-    // sometimes we need to return focus to a specific component after an Alert dialog is dismissed
-    // currently used by KeyBindingsOverlay
-    juce::Component::SafePointer<juce::Component> componentToFocusAfterAlertDismissal{nullptr};
 
     // Return whether we called the OK action automatically or not
     bool promptForOKCancelWithDontAskAgain(const ::std::string &title, const std::string &msg,
