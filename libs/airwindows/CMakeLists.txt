@@ -86,10 +86,6 @@ if(${BUILD_AIRWINDOWS})
         src/DrumSlam.cpp
         src/DrumSlam.h
         src/DrumSlamProc.cpp
-        src/DubSub.cpp
-        src/DubSubProc.cpp
-        src/DubCenter.cpp
-        src/DubCenterProc.cpp
         src/DustBunny.cpp
         src/DustBunny.h
         src/DustBunnyProc.cpp
@@ -104,8 +100,6 @@ if(${BUILD_AIRWINDOWS})
         src/Galactic.cpp
         src/Galactic.h
         src/GalacticProc.cpp
-        src/GlitchShifter.cpp
-        src/GlitchShifterProc.cpp
         src/GrooveWear.cpp
         src/GrooveWear.h
         src/GrooveWearProc.cpp
@@ -115,9 +109,6 @@ if(${BUILD_AIRWINDOWS})
         src/Hombre.cpp
         src/Hombre.h
         src/HombreProc.cpp
-        src/Infinity.cpp
-        src/Infinity.h
-        src/InfinityProc.cpp
         src/IronOxide5.cpp
         src/IronOxide5.h
         src/IronOxide5Proc.cpp
@@ -127,9 +118,6 @@ if(${BUILD_AIRWINDOWS})
         src/Loud.cpp
         src/Loud.h
         src/LoudProc.cpp
-        src/Mackity.cpp
-        src/Mackity.h
-        src/MackityProc.cpp
         src/MackEQ.cpp
         src/MackEQ.h
         src/MackEQProc.cpp
@@ -153,8 +141,6 @@ if(${BUILD_AIRWINDOWS})
         src/OneCornerClip.cpp
         src/OneCornerClip.h
         src/OneCornerClipProc.cpp
-        src/Pafnuty.cpp
-        src/PafnutyProc.cpp
         src/PocketVerbs.cpp
         src/PocketVerbs.h
         src/PocketVerbsProc.cpp
@@ -164,8 +150,6 @@ if(${BUILD_AIRWINDOWS})
         src/Pop.cpp
         src/Pop.h
         src/PopProc.cpp
-        src/PowerSag.cpp
-        src/PowerSagProc.cpp
         src/Pressure4.cpp
         src/Pressure4.h
         src/Pressure4Proc.cpp
@@ -187,9 +171,6 @@ if(${BUILD_AIRWINDOWS})
         src/StarChild.cpp
         src/StarChild.h
         src/StarChildProc.cpp
-        src/Surge.cpp
-        src/Surge.h
-        src/SurgeProc.cpp
         src/TapeDust.cpp
         src/TapeDustProc.cpp
         src/ToTape6.cpp
@@ -206,36 +187,15 @@ if(${BUILD_AIRWINDOWS})
         src/Verbity.cpp
         src/Verbity.h
         src/VerbityProc.cpp
-        src/VariMu.cpp
-        src/VariMu.h
-        src/VariMuProc.cpp
         src/VoiceOfTheStarship.cpp
         src/VoiceOfTheStarship.h
         src/VoiceOfTheStarshipProc.cpp
-        src/YBandpass.cpp
-        src/YBandpass.h
-        src/YBandpassProc.cpp
-        src/YHighpass.cpp
-        src/YHighpass.h
-        src/YHighpassProc.cpp
         src/YLowpass.cpp
         src/YLowpass.h
         src/YLowpassProc.cpp
-        src/YNotch.cpp
-        src/YNotch.h
-        src/YNotchProc.cpp
-        src/ZBandpass2.cpp
-        src/ZBandpass2.h
-        src/ZBandpass2Proc.cpp
-        src/ZHighpass2.cpp
-        src/ZHighpass2.h
-        src/ZHighpass2Proc.cpp
         src/ZLowpass2.cpp
         src/ZLowpass2.h
         src/ZLowpass2Proc.cpp
-        src/ZNotch2.cpp
-        src/ZNotch2.h
-        src/ZNotch2Proc.cpp
     )
     target_compile_definitions(${PROJECT_NAME} PUBLIC
         SURGE_INCLUDE_AIRWINDOWS=1
