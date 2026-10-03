@@ -139,6 +139,10 @@ SurgefxAudioProcessor::SurgefxAudioProcessor()
             {
                 return "Convolution (Unimplemented)";
             }
+            if (isRetiredFxType(i))
+            {
+                return juce::String(fx_type_names[i]) + " (Retired)";
+            }
             return fx_type_names[i];
         }
         return "";
@@ -395,7 +399,9 @@ void SurgefxAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     // FIXME: Check: has type changed?
     int pt = *fxType;
 
-    if (effectNum != pt && pt != fxt_convolution)
+    // A retired type is ignored, as convolution is. Off is not selectable from the host, so a
+    // remap to Off would stop host automation from selecting a type again.
+    if (effectNum != pt && pt != fxt_convolution && !isRetiredFxType(pt))
     {
         effectNum = pt;
         resetFxType(effectNum);
@@ -638,7 +644,16 @@ void SurgefxAudioProcessor::setStateInformation(const void *data, int sizeInByte
                 streamingVersion = 1; // assume some corrupted ancient session
 
             effectNum = xmlState->getIntAttribute("fxt", fxt_delay);
+
+            const bool retiredType = isRetiredFxType(effectNum);
+            effectNum = remapRetiredFxType(effectNum);
             resetFxType(effectNum, false);
+
+            // Keep the Off state of a retired type. Otherwise prepareToPlay loads Delay.
+            if (retiredType)
+            {
+                hasLoadedFxType.store(true);
+            }
 
             oscPortIn = xmlState->getIntAttribute("oscpin", 0);
             oscStartIn = xmlState->getBoolAttribute("oscin", false);

@@ -1356,7 +1356,7 @@ void FxMenu::scanExtraPresets()
         {
             // So let's run all presets until we find the first item with type tp.first
             auto alit = allPresets.begin();
-            while (alit->itemType != tp.first && alit != allPresets.end())
+            while (alit != allPresets.end() && alit->itemType != tp.first)
                 alit++;
             if (alit == allPresets.end())
                 continue;

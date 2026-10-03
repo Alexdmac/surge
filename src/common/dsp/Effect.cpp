@@ -54,7 +54,6 @@
 #include "chowdsp/TapeEffect.h"
 #include "DebugHelpers.h"
 #include "AudioInputEffect.h"
-#include "FloatyDelayEffect.h"
 
 using namespace std;
 
@@ -127,7 +126,8 @@ Effect *spawn_effect(int id, SurgeStorage *storage, FxStorage *fxdata, pdata *pd
     case fxt_audio_input:
         return new AudioInputEffect(storage, fxdata, pd);
     case fxt_floaty_delay:
-        return new FloatyDelayEffect(storage, fxdata, pd);
+        // Retired. The load paths map this type to fxt_off (see remapRetiredFxType).
+        return nullptr;
     case fxt_convolution:
         return new ConvolutionEffect(storage, fxdata, pd);
 

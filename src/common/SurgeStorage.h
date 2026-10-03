@@ -503,6 +503,14 @@ const char fx_type_acronyms[n_fx_types][8] = {
     "RV2", "FL",   "RM",  "AW", "NEU", "GEQ",  "RES", "CHW", "XCT", "ENS", "CMB",
     "NIM", "TAPE", "TM",  "WS", "M-S", "SRV",  "BON", "IN",  "FDL", "IR"};
 
+/*
+ * A retired FX type keeps its enum id, so that the ids of other types do not change.
+ * Every path that loads an FX type from outside the session maps a retired type to
+ * fxt_off with this helper, so that the slot becomes an empty slot.
+ */
+inline bool isRetiredFxType(int type) { return type == fxt_floaty_delay; }
+inline int remapRetiredFxType(int type) { return isRetiredFxType(type) ? (int)fxt_off : type; }
+
 enum fx_bypass
 {
     fxb_all_fx = 0,

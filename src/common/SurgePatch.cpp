@@ -1963,6 +1963,9 @@ void SurgePatch::load_xml(const void *data, int datasize, bool is_preset)
 
     TiXmlElement *p;
 
+    // FX slots whose streamed type was retired and is now loaded as Off
+    bool retiredFxSlot[n_fx_slots] = {};
+
     for (int i = 0; i < n; i++)
     {
         if (!i)
@@ -1985,6 +1988,17 @@ void SurgePatch::load_xml(const void *data, int datasize, bool is_preset)
 
         if (p)
         {
+            /*
+             * The type parameter of each FX slot comes before the other parameters of that
+             * slot. A slot of a retired type loads as Off, so skip its parameters and their
+             * modulation routings, as save_xml does for an Off slot.
+             */
+            if (param_ptr[i]->ctrlgroup == cg_FX && param_ptr[i]->ctrltype != ct_fxtype &&
+                retiredFxSlot[param_ptr[i]->ctrlgroup_entry])
+            {
+                continue;
+            }
+
             int type;
             bool hasStreamedType = true;
 
@@ -2016,6 +2030,13 @@ void SurgePatch::load_xml(const void *data, int datasize, bool is_preset)
                 else
                 {
                     param_ptr[i]->val.i = param_ptr[i]->val_default.i;
+                }
+
+                if (param_ptr[i]->ctrlgroup == cg_FX && param_ptr[i]->ctrltype == ct_fxtype &&
+                    isRetiredFxType(param_ptr[i]->val.i))
+                {
+                    param_ptr[i]->val.i = remapRetiredFxType(param_ptr[i]->val.i);
+                    retiredFxSlot[param_ptr[i]->ctrlgroup_entry] = true;
                 }
             }
 
