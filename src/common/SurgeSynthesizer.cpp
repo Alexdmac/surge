@@ -3164,6 +3164,10 @@ bool SurgeSynthesizer::setParameter01(long index, float value, bool external, bo
             // OK so this would work you would think but remember that FXSync is primary not the
             // patch so
             auto p = storage.getPatch().param_ptr[index];
+
+            // OSC, host automation and MIDI can ask for a retired type. Use Off for it.
+            p->val.i = remapRetiredFxType(p->val.i);
+
             if (p->val.i != oldval.i)
             {
                 int cge = p->ctrlgroup_entry;

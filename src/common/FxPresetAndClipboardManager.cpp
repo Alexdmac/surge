@@ -107,6 +107,10 @@ void FxUserPreset::doPresetRescan(SurgeStorage *storage, bool forceRescan)
                 if (s->QueryIntAttribute("type", &t) != TIXML_SUCCESS)
                     goto badPreset;
 
+                // configuration.xml has no menu entry for a retired type, so do not list it
+                if (isRetiredFxType(t))
+                    goto badPreset;
+
                 preset.type = t;
                 preset.isFactory = f.second;
 
@@ -394,7 +398,7 @@ void FxUserPreset::saveFxIn(SurgeStorage *storage, FxStorage *fx, const std::str
 
 void FxUserPreset::loadPresetOnto(const Preset &p, SurgeStorage *storage, FxStorage *fxbuffer)
 {
-    fxbuffer->type.val.i = p.type;
+    fxbuffer->type.val.i = remapRetiredFxType(p.type);
     // Special userdata bits.
     fxbuffer->user_data.clear();
     if (!p.filename.empty())
@@ -731,7 +735,7 @@ void FxChainUserPreset::loadPresetOnto(const Preset &p, SurgeStorage *storage,
         const auto &sd = p.slots[slot];
         FxStorage *buf = fxbuffer[slot];
 
-        buf->type.val.i = sd.type;
+        buf->type.val.i = remapRetiredFxType(sd.type);
         buf->user_data.clear();
 
         if (!sd.filename.empty())
@@ -824,7 +828,7 @@ void pasteFx(SurgeStorage *storage, FxStorage *fxbuffer, Clipboard &cb)
     if (cb.fxCopyPaste.empty())
         return;
 
-    fxbuffer->type.val.i = (int)cb.fxCopyPaste[0];
+    fxbuffer->type.val.i = remapRetiredFxType((int)cb.fxCopyPaste[0]);
     fxbuffer->user_data = cb.user_data;
 
     Effect *t_fx = spawn_effect(fxbuffer->type.val.i, storage, fxbuffer, 0);
@@ -942,7 +946,7 @@ void pasteFxChain(SurgeStorage *storage, FxStorage *onto[n_fx_per_chain], ChainC
         if (sc.params.empty())
             continue;
 
-        buf->type.val.i = (int)sc.params[0];
+        buf->type.val.i = remapRetiredFxType((int)sc.params[0]);
         buf->user_data = sc.user_data;
 
         Effect *t_fx = spawn_effect(buf->type.val.i, storage, buf, 0);

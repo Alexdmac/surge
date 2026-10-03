@@ -24,6 +24,7 @@
 #include <sstream>
 #include <algorithm>
 #include <cmath>
+#include <fstream>
 #include <limits>
 
 #include "HeadlessUtils.h"
@@ -36,6 +37,7 @@
 #include "AudioInputEffect.h"
 #include "DelayEffect.h"
 #include "DistortionEffect.h"
+#include "FxPresetAndClipboardManager.h"
 
 using namespace Surge::Test;
 
@@ -1195,6 +1197,10 @@ TEST_CASE("Stopping Sound Clears Poisoned FX State", "[fx]") // See issue 8240
     // into a sustained full scale signal that no volume control can attenuate.
     for (int t = fxt_off + 1; t < n_fx_types; ++t)
     {
+        // A retired type spawns no effect
+        if (isRetiredFxType(t))
+            continue;
+
         DYNAMIC_SECTION("FX " << t << " " << fx_type_names[t])
         {
             auto surge = Surge::Headless::createSurge(48000);
@@ -1617,5 +1623,250 @@ TEST_CASE("Dual Delay Line Modes", "[fx]")
 
         INFO("Impulse returned at sample " << idx);
         REQUIRE(idx < 0.2 * DelayLineModeProbe::sampleRate - 1000);
+    }
+}
+
+namespace
+{
+int routingsOntoFXSlot(SurgePatch &patch, int slot)
+{
+    int res = 0;
+
+    for (const auto &r : patch.modulation_global)
+    {
+        auto *p = patch.param_ptr[r.destination_id];
+
+        if (p->ctrlgroup == cg_FX && p->ctrlgroup_entry == slot)
+        {
+            res++;
+        }
+    }
+
+    return res;
+}
+
+void requireSlotIsOffAndOutputIsFinite(std::shared_ptr<SurgeSynthesizer> surge, int slot)
+{
+    auto &patch = surge->storage.getPatch();
+
+    REQUIRE(patch.fx[slot].type.val.i == fxt_off);
+    REQUIRE(surge->fxsync[slot].type.val.i == fxt_off);
+    REQUIRE(!surge->fx[slot]);
+
+    for (int i = 0; i < n_fx_params; ++i)
+    {
+        REQUIRE(patch.fx[slot].p[i].ctrltype == ct_none);
+    }
+
+    surge->playNote(0, 60, 100, 0);
+
+    for (int b = 0; b < 200; ++b)
+    {
+        surge->process();
+
+        for (int s = 0; s < BLOCK_SIZE; ++s)
+        {
+            REQUIRE(std::isfinite(surge->output[0][s]));
+            REQUIRE(std::isfinite(surge->output[1][s]));
+        }
+    }
+}
+
+// Apply a change to fxsync the way the editor does after a preset load or a paste
+void applyFXSync(std::shared_ptr<SurgeSynthesizer> surge, int slot)
+{
+    surge->fx_reload[slot] = true;
+    surge->load_fx_needed = true;
+
+    for (int i = 0; i < 10; ++i)
+    {
+        surge->process();
+    }
+}
+} // namespace
+
+TEST_CASE("Retired FX Types Load As Off", "[fx]")
+{
+    const int slot = fxslot_ains1;
+
+    SECTION("A patch with a retired FX type")
+    {
+        auto src = Surge::Headless::createSurge(44100);
+        REQUIRE(src);
+
+        Surge::Test::setFX(src, slot, fxt_delay);
+        REQUIRE(src->fx[slot]);
+
+        auto &srcPatch = src->storage.getPatch();
+        auto *target = &srcPatch.fx[slot].p[DelayEffect::dly_mix];
+
+        src->setModDepth01(target->id, ms_ctrl1, 0, 0, 0.5f);
+        REQUIRE(routingsOntoFXSlot(srcPatch, slot) == 1);
+
+        void *data = nullptr;
+        auto sz = srcPatch.save_xml(&data);
+        REQUIRE(sz > 0);
+
+        std::string xml((char *)data, sz);
+        free(data);
+
+        // Change the streamed type of the slot from Delay to the retired type
+        auto tagStart = xml.find("<fx1_type ");
+        REQUIRE(tagStart != std::string::npos);
+
+        auto tagEnd = xml.find('>', tagStart);
+        auto valuePos = xml.find("value=\"1\"", tagStart);
+        REQUIRE(valuePos < tagEnd);
+
+        xml.replace(valuePos, 9, "value=\"" + std::to_string((int)fxt_floaty_delay) + "\"");
+        REQUIRE(xml.find("<modrouting") != std::string::npos);
+
+        auto dest = Surge::Headless::createSurge(44100);
+        REQUIRE(dest);
+
+        dest->loadRaw(xml.data(), (int)xml.size(), false);
+
+        auto &destPatch = dest->storage.getPatch();
+        REQUIRE(routingsOntoFXSlot(destPatch, slot) == 0);
+        requireSlotIsOffAndOutputIsFinite(dest, slot);
+    }
+
+    SECTION("OSC or host automation selects a retired FX type")
+    {
+        auto surge = Surge::Headless::createSurge(44100);
+        REQUIRE(surge);
+
+        Surge::Test::setFX(surge, slot, fxt_delay);
+        REQUIRE(surge->fx[slot]);
+
+        // setFX sets the type through setParameter01, as OSC and the host do
+        Surge::Test::setFX(surge, slot, fxt_floaty_delay);
+        requireSlotIsOffAndOutputIsFinite(surge, slot);
+    }
+
+    SECTION("An FX preset with a retired FX type")
+    {
+        auto surge = Surge::Headless::createSurge(44100);
+        REQUIRE(surge);
+
+        Surge::Test::setFX(surge, slot, fxt_delay);
+        REQUIRE(surge->fx[slot]);
+
+        Surge::Storage::FxUserPreset::Preset preset;
+        preset.name = "Retired";
+        preset.type = fxt_floaty_delay;
+
+        Surge::Storage::FxUserPreset loader;
+        loader.loadPresetOnto(preset, &surge->storage, &surge->fxsync[slot]);
+        REQUIRE(surge->fxsync[slot].type.val.i == fxt_off);
+
+        applyFXSync(surge, slot);
+        requireSlotIsOffAndOutputIsFinite(surge, slot);
+    }
+
+    SECTION("An FX chain preset with a retired FX type")
+    {
+        auto surge = Surge::Headless::createSurge(44100);
+        REQUIRE(surge);
+
+        Surge::Test::setFX(surge, slot, fxt_delay);
+        REQUIRE(surge->fx[slot]);
+
+        Surge::Storage::FxChainUserPreset::Preset preset;
+        preset.name = "Retired Chain";
+        preset.slots[0].type = fxt_floaty_delay;
+
+        FxStorage *bufs[n_fx_per_chain];
+
+        for (int i = 0; i < n_fx_per_chain; ++i)
+        {
+            bufs[i] = &surge->fxsync[slot + i];
+        }
+
+        Surge::Storage::FxChainUserPreset loader;
+        loader.loadPresetOnto(preset, &surge->storage, bufs);
+        REQUIRE(surge->fxsync[slot].type.val.i == fxt_off);
+
+        applyFXSync(surge, slot);
+        requireSlotIsOffAndOutputIsFinite(surge, slot);
+    }
+
+    SECTION("FX clipboards with a retired FX type")
+    {
+        auto surge = Surge::Headless::createSurge(44100);
+        REQUIRE(surge);
+
+        Surge::Test::setFX(surge, slot, fxt_delay);
+        REQUIRE(surge->fx[slot]);
+
+        Surge::FxClipboard::Clipboard cb;
+        Surge::FxClipboard::copyFx(&surge->storage, &surge->fxsync[slot], cb);
+        cb.fxCopyPaste[0] = fxt_floaty_delay;
+
+        Surge::FxClipboard::pasteFx(&surge->storage, &surge->fxsync[slot], cb);
+        REQUIRE(surge->fxsync[slot].type.val.i == fxt_off);
+
+        applyFXSync(surge, slot);
+        requireSlotIsOffAndOutputIsFinite(surge, slot);
+
+        Surge::Test::setFX(surge, slot, fxt_delay);
+        REQUIRE(surge->fx[slot]);
+
+        FxStorage *bufs[n_fx_per_chain];
+
+        for (int i = 0; i < n_fx_per_chain; ++i)
+        {
+            bufs[i] = &surge->fxsync[slot + i];
+        }
+
+        Surge::FxClipboard::ChainClipboard chainCb;
+        Surge::FxClipboard::copyFxChain(&surge->storage, bufs, nullptr, chainCb);
+        chainCb.slots[0].params[0] = fxt_floaty_delay;
+
+        Surge::FxClipboard::pasteFxChain(&surge->storage, bufs, chainCb);
+        REQUIRE(surge->fxsync[slot].type.val.i == fxt_off);
+
+        applyFXSync(surge, slot);
+        requireSlotIsOffAndOutputIsFinite(surge, slot);
+    }
+
+    SECTION("A preset rescan skips a retired FX type")
+    {
+        auto surge = Surge::Headless::createSurge(44100);
+        REQUIRE(surge);
+
+        auto dir = fs::temp_directory_path() / "surge_retired_fx_presets";
+        fs::remove_all(dir);
+        fs::create_directories(dir);
+
+        auto writePreset = [&dir](const std::string &name, int type) {
+            std::ofstream of(dir / (name + ".srgfx"));
+            of << "<single-fx streaming_version=\"" << ff_revision << "\">\n"
+               << "  <snapshot name=\"" << name << "\" type=\"" << type << "\" p0=\"0\"/>\n"
+               << "</single-fx>\n";
+        };
+
+        writePreset("Retired Preset", fxt_floaty_delay);
+        writePreset("Kept Delay Preset", fxt_delay);
+
+        surge->storage.userFXPath = dir;
+
+        Surge::Storage::FxUserPreset loader;
+        loader.doPresetRescan(&surge->storage, true);
+
+        auto byType = loader.getPresetsByType();
+        REQUIRE(byType.find(fxt_floaty_delay) == byType.end());
+        REQUIRE(byType.find(fxt_delay) != byType.end());
+
+        bool foundKept = false;
+
+        for (const auto &p : byType[fxt_delay])
+        {
+            foundKept = foundKept || p.name == "Kept Delay Preset";
+        }
+
+        REQUIRE(foundKept);
+
+        fs::remove_all(dir);
     }
 }
